@@ -1,0 +1,54 @@
+#include <Arduino.h>
+#include "LinAct_Kalman_Filter.h"
+#include "LinAct_Control_Measure.h"
+
+#define DIR_PIN 7
+#define PWM_PIN 6
+
+#define POT_INPUT A3
+
+float position_val = 0;
+float delta_time = 0;
+float end_time = 0;
+
+int pwm_value = 20; // Set the PWM value to 20 (20% duty cycle)
+bool direction = LOW; // Set the direction to HIGH (forward)
+
+LinAct lin_act(PWM_PIN, DIR_PIN, POT_INPUT, &position_val);
+
+// KalmanFilter kalman_filter(&delta_time, &position_val);
+// the setup function runs once when you press reset or power the board
+// Maximum duty cycle for PWM signal: 20% (<50). Do 30 for now. 
+void print_all() {
+  Serial.print("Position: ");
+  Serial.print(position_val);
+  Serial.print(" mm, ");
+  Serial.print("Delta Time: ");
+  Serial.print(delta_time);
+  Serial.println(" ms");
+}
+
+void setup() {
+  // initialize digital pin LED_BUILTIN as an output.
+  lin_act.instantiate();
+  Serial.begin(9600);
+}
+
+// the loop function runs over and over again forever
+void loop() {
+  delta_time = millis();
+  end_time = millis();
+  delta_time = end_time - delta_time;
+  lin_act.move(&pwm_value, &direction);
+  lin_act.measurePosition(&position_val);
+  print_all();
+// --- Direction Latching Logic ---
+  // Use >= and <= instead of == because sensors can occasionally skip a number (e.g., 500.2)
+  if (position_val >= 500.0) {
+    direction = HIGH;   // Hit the top limit! Switch to retract
+  } 
+  else if (position_val <= 0.0) {
+    direction = LOW;  // Hit the bottom limit! Switch to extend
+  }
+  // If it's between 1 and 499, 'direction' stays exactly what it was!
+}
