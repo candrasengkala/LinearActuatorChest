@@ -1,11 +1,12 @@
 #include <Arduino.h>
 #include "Position_Measure.h"
+#include "TimerInterrupt.h"
 // Note to self: there's a better and more memory efficient way to do this, but for now, let's keep it simple and straightforward.
 // Constants adjusted for Arduino UNO hardware specifications
 const float ADC_MIN = 0.0f;       // Minimum ADC value for Arduino UNO
 const float ADC_MAX = 1023.0f;    // Maximum ADC value for Arduino UNO (10-bit ADC)
 const float POS_MIN_MM = 0.0f;    // Actuator fully retracted (0 mm)
-const float POS_MAX_MM = 500.0f;  // Actuator fully extended (500 mm)
+const float POS_MAX_MM = 50.0f;  // Actuator fully extended (50 mm)
 
 int measurePosition(float potValue, float *position) {
     // 1. Safety Guard: Check if the memory pointer is valid (not null)

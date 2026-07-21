@@ -10,17 +10,9 @@
 float position_reading = -1.0; // Set to invalid starting reading to avoid false 0 trigger
 float delta_time = 0;
 
-float pwm_value_retract;
-float pwm_value_extend;
+float pwm_value_retract = 255;
+float pwm_value_extend  = 255;
 float pwm_value_fed     = 0;
-
-float retract_speed = 5;
-float extend_speed = 5;
-// PWM = a*v + b
-float a = 13.96764;
-float b = -0.4061;
-
-float target_position = 20;
 
 bool dir = HIGH;
 bool first_run = true;
@@ -50,13 +42,37 @@ void setup() {
 
 void loop() {  
   unsigned long current_time = millis();
-  pwm_value_extend = (a * extend_speed) + b;
-  pwm_value_retract = (a * retract_speed) + b;
+  
   // Non-blocking timing gate
   if (current_time - last_execution_time >= interval) {
     lin_act.measurePosition();
     last_execution_time = current_time;
-    lin_act.backnforthSpeed(target_position, pwm_value_extend, pwm_value_retract, &dir);
+    // Serial.println(last_execution_time);
+    if (first_run) {
+      if ((position_reading <= 25.0)) {
+        pwm_value_fed = pwm_value_extend;
+        dir = HIGH; // Extend outward if close to bottom
+      } else if ((position_reading > 25.0)) {
+        pwm_value_fed = pwm_value_retract;
+        dir = LOW;
+      }
+      // Exit first_run only when valid end thresholds are reached
+      if ((position_reading <= 0.0) || (position_reading >= 50.0)) {
+        first_run = false;
+      }
+    } 
+    else {
+      // Normal continuous toggling
+      if (position_reading >= 50.0) {
+        dir = HIGH; // Retract
+        pwm_value_fed = pwm_value_retract;
+      } 
+      else if (position_reading <= 0.0) {
+        dir = LOW; // Extend
+        pwm_value_fed = pwm_value_extend;
+      }
+    }
     print_all();
   }
+  lin_act.move(&pwm_value_fed, &dir);
 }

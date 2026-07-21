@@ -1,0 +1,47 @@
+=== 1st-order fit (PWM -> velocity) ===
+
+G_vel_1 =
+ 
+  From input "PWM" to output "Velocity":
+   0.6951
+  ---------
+  s + 1.017
+ 
+Continuous-time identified transfer function.
+
+Parameterization:
+   Number of poles: 1   Number of zeros: 0
+   Number of free coefficients: 2
+   Use "tfdata", "getpvec", "getcov" for parameters and their uncertainties.
+
+Status:                                              
+Estimated using TFEST on time domain data "data_vel".
+Fit to estimation data: 59.25%                       
+FPE: 0.9376, MSE: 0.9337                             
+ 
+Model Properties
+Fit quality: 59.25% (NRMSE)
+
+=== 2nd-order fit (PWM -> velocity) ===
+
+G_vel_2 =
+ 
+  From input "PWM" to output "Velocity":
+                15.53
+  ---------------------------------
+  s^3 + 10.98 s^2 + 18.88 s + 22.87
+ 
+Continuous-time identified transfer function.
+
+Parameterization:
+   Number of poles: 3   Number of zeros: 0
+   Number of free coefficients: 4
+   Use "tfdata", "getpvec", "getcov" for parameters and their uncertainties.
+
+Status:                                              
+Estimated using TFEST on time domain data "data_vel".
+Fit to estimation data: 75.39%                       
+FPE: 0.3439, MSE: 0.3406                             
+ 
+Model Properties
+Fit quality: 75.39% (NRMSE)

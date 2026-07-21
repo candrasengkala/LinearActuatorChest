@@ -7,14 +7,18 @@
 class KalmanFilter {
 public:
     // Constructor takes memory addresses for tracking inputs and outputs
-    KalmanFilter(float* dt, float* position_reading, float* position_estimate, float* velocity); 
+    KalmanFilter(float* dt, float* position_reading, float* position_estimate, float* velocity, float* sigma_v_squared, float* r); 
     
     // Changes to void because it modifies your external variables directly
     void updateFilter(); 
     void getPosition();
     void getVelocity();
+    void init();
     void printMatrices(); // Optional: For debugging purposes
-
+    // Tuning setters
+    void setQ(float *sigma_v_sq); // rebuilds Q from single scalar (sigma_v^2)
+    void setR(float *r);          // sets measurement noise variance directly
+    void stepResponse(float* position_reading, float* pwm_value, float *delta_t);         // Returns time, input PWM, estimated position, and estimated velocity with for writing in CSV.
 private:
     // BasicLinearAlgebra types: BLA::Matrix<rows, columns>
     BLA::Matrix<2, 1> K_k;   // Kalman gain matrix (2x1)
@@ -34,6 +38,8 @@ private:
     float* _position_reading;  
     float* _position_estimate; 
     float* _velocity;         
+    float* _sigma_v_squared;
+    float* _r;
 };
 
 #endif
