@@ -44,19 +44,19 @@ float position_estimate = 0;
 float velocity_estimate = 0;
 // === PID Controller Parameters ===
 float Ts = TIMER1_INTERVAL_MS / 1000.0f; // Sampling time in seconds (100 ms)
-float Kp = 1.6009521140947;
-float Ki = 0.29140828461245;
-float Kd = -1.64758381046824; // PID tuning parameters
-float N = 0.557545458099736; // Derivative filter divisor
-float b = 0.57653615672285; // Proportional setpoint weight (1.0 = classic PID, matches old YAPID behavior)
-float c = 1.73729380011848; // Derivative setpoint weight (1.0 = classic PID, matches old YAPID behavior)
+float Kp = 3.25049867125114;
+float Ki = 0.153823359280193;
+float Kd = -2.37818576498243; // PID tuning parameters
+float N = 1.27653195864833; // Derivative filter divisor
+float b = 1.0f; // Proportional setpoint weight (1.0 = classic PID, matches old YAPID behavior)
+float c = 1.0f; // Derivative setpoint weight (1.0 = classic PID, matches old YAPID behavior)
 // === Kalman Filter Parameters ===
 float sigma_v_squared = 640.0f; // Process noise variance (tuning parameter)
 float r = 0.08f; // Measurement noise variance (tuning parameter)
 // === Target values for PID control ===
 float PID_output = 0;
 bool dir;
-float position_target = 40; // Target velocity for PID control
+float position_target = 25; // Target velocity for PID control
 // === Kalman Filter Timing ===
 unsigned long last_execution_time = 0;
 // === Object Instantiations ===
@@ -72,27 +72,27 @@ void pwmTimerHandler(){
     filter.updateFilter(); 
     
     PID_output = pid_controller.compute(position_target, position_reading);
-    dir = PID_output < 0;
 
     PID_output = fabs(PID_output); // magnitude only; dir carries the sign
+    dir = PID_output < 0;
     lin_act.move(&PID_output, &dir);
 
-    // // Saturation for Position
-    // if (!dir && position_estimate >= 50.0f) {
-    //     PID_output = 0;
-    //     Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
-    // }
-    // else if (dir && position_estimate <= 0.0f){
-    //     PID_output = 0;
-    //     Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
-    // } 
+    // Saturation for Position
+    if (!dir && position_estimate >= 50.0f) {
+        PID_output = 0;
+        Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
+    }
+    else if (dir && position_estimate <= 0.0f){
+        PID_output = 0;
+        Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
+    } 
 }
 //the loop function runs over and over again forever
 void setup() {
     lin_act.instantiate();
     timer.instantiate();
     Serial.begin(115200);   //Set to 115200 to handle data matrices smoothly
-    pid_controller.setOutputLimits(-255.0f, 255.0f); // cap PID_output magnitude at 50  
+    pid_controller.setOutputLimits(0.0f, 255.0f); // cap PID_output magnitude at 50  
     filter.init();          //seed position_estimate from real hardware first
     ITimer1.init();
     ITimer1.attachInterrupt(TIMER1_INTERVAL_MS, pwmTimerHandler);

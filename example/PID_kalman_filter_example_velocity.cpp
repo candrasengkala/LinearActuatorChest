@@ -30,7 +30,7 @@ Date        : July 15th, 2026
 #endif
 // To be included only in main(), .ino with setup() to avoid `Multiple Definitions` Linker Error
 #include "TimerInterrupt.h"
-#include "PID2DOF.h"
+#include "yapid.h"
 // === Pin Definitions ===
 #define DIR_PIN 7
 #define PWM_PIN 6
@@ -44,55 +44,59 @@ float position_estimate = 0;
 float velocity_estimate = 0;
 // === PID Controller Parameters ===
 float Ts = TIMER1_INTERVAL_MS / 1000.0f; // Sampling time in seconds (100 ms)
-float Kp = 1.6009521140947;
-float Ki = 0.29140828461245;
-float Kd = -1.64758381046824; // PID tuning parameters
-float N = 0.557545458099736; // Derivative filter divisor
-float b = 0.57653615672285; // Proportional setpoint weight (1.0 = classic PID, matches old YAPID behavior)
-float c = 1.73729380011848; // Derivative setpoint weight (1.0 = classic PID, matches old YAPID behavior)
+float Kp = 10;
+float Ki = 2;
+float Kd = 0; // PID tuning parameters
+float N = 0.0; // Integral term for PID control
 // === Kalman Filter Parameters ===
 float sigma_v_squared = 640.0f; // Process noise variance (tuning parameter)
 float r = 0.08f; // Measurement noise variance (tuning parameter)
 // === Target values for PID control ===
 float PID_output = 0;
 bool dir;
-float position_target = 40; // Target velocity for PID control
+float velocity_target = 10; // Target velocity for PID control
 // === Kalman Filter Timing ===
 unsigned long last_execution_time = 0;
 // === Object Instantiations ===
 KalmanFilter filter(&delta_time, &position_reading, &position_estimate, &velocity_estimate, &sigma_v_squared, &r);
 LinAct lin_act(PWM_PIN, DIR_PIN, POT_INPUT, &position_reading);
 LinAct_Timer timer(&delta_time);
-PID2DOF pid_controller(Kp, Ki, Kd, N, b, c, Ts);
+YAPID pid_controller(Ts, Kp, Ki, Kd, N);
 // === Helper Functions ===
 void pwmTimerHandler(){
     timer.deltaTime(); 
     // Everything in here runs exactly once every 100ms
     lin_act.measurePosition(); 
     filter.updateFilter(); 
+    dir = velocity_target < 0;  // HIGH = retract, LOW = extend
+    // Feed magnitudes into the PID so the controller isn't confused by a
+    // sign flip between target and estimate (e.g. target=-10, estimate=+2
+    // during a direction reversal would otherwise read as a huge error).
+    float target_mag = fabs(velocity_target);
+    float estimate_mag = fabs(velocity_estimate);
     
-    PID_output = pid_controller.compute(position_target, position_reading);
-    dir = PID_output < 0;
+    pid_controller.UpdateTime();
+    PID_output = pid_controller.Compute1(target_mag, estimate_mag);
 
     PID_output = fabs(PID_output); // magnitude only; dir carries the sign
     lin_act.move(&PID_output, &dir);
 
-    // // Saturation for Position
-    // if (!dir && position_estimate >= 50.0f) {
-    //     PID_output = 0;
-    //     Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
-    // }
-    // else if (dir && position_estimate <= 0.0f){
-    //     PID_output = 0;
-    //     Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
-    // } 
+    // Saturation for Position
+    if (!dir && position_estimate >= 500.0f) {
+        velocity_target = 0;
+        Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
+    }
+    else if (dir && position_estimate <= 0.0f){
+        Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
+        velocity_target = 0;
+    } 
 }
 //the loop function runs over and over again forever
 void setup() {
     lin_act.instantiate();
     timer.instantiate();
     Serial.begin(115200);   //Set to 115200 to handle data matrices smoothly
-    pid_controller.setOutputLimits(-255.0f, 255.0f); // cap PID_output magnitude at 50  
+    pid_controller.SetOutputLimits(0.0f, 255.0f); // cap PID_output magnitude at 50  
     filter.init();          //seed position_estimate from real hardware first
     ITimer1.init();
     ITimer1.attachInterrupt(TIMER1_INTERVAL_MS, pwmTimerHandler);
@@ -106,7 +110,7 @@ void loop() {
         Serial.print(",");
         Serial.print(PID_output);
         Serial.print(",");
-        Serial.print(position_target);
+        Serial.print(velocity_target);
         Serial.print(",");
         Serial.print(velocity_estimate);
         Serial.print(",");

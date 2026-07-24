@@ -4,6 +4,8 @@ Author      : Rizmi Ahmad Raihan
 Affiliation : Institut Teknologi Bandung
 Description : This project implements a control system for a linear actuator using a Kalman filter for state estimation and a PID controller for precise movement. The system reads position data from a potentiometer, estimates the position and velocity of the actuator, and adjusts the actuator's movement accordingly.
 Date        : July 15th, 2026
+何を見てるの？
+君のこと見てるよ
 */
 // === Dependencies ===
 #include <Arduino.h>
@@ -36,108 +38,79 @@ Date        : July 15th, 2026
 #define PWM_PIN 6
 #define POT_INPUT A3
 // === Timer Interval Definition ===
-#define TIMER1_INTERVAL_MS 1
+#define TIMER1_INTERVAL_MS 100
 // === Global Variables ===
 float position_reading = 0;
 float delta_time = 0;
 float position_estimate = 0;
 float velocity_estimate = 0;
 // === PID Controller Parameters ===
-float Ts = 1e-3f; // Sampling time in seconds (25 ms)
-float Kp = 2.609926872467509;
-float Ki = 0.609926872467509;
-float Kd = 0; // PID tuning parameters
-float N = 0.0; // Integral term for PID control
+float Ts = TIMER1_INTERVAL_MS / 1000.0f; // Sampling time in seconds (100 ms)
+float Kp = 13.0892711024128;
+float Ki = 2.46213655545273;
+float Kd = -2.37539933893927; // PID tuning parameters
+float N = 4.28816743973314; // Integral term for PID control
 // === Kalman Filter Parameters ===
-float sigma_v_squared = 0.1f; // Process noise variance (tuning parameter)
-float r = 0.03375196f; // Measurement noise variance (tuning parameter)
+float sigma_v_squared = 640.0f; // Process noise variance (tuning parameter)
+float r = 0.08f; // Measurement noise variance (tuning parameter)
 // === Target values for PID control ===
 float PID_output = 0;
 bool dir;
-float velocity_target = -30; // Target velocity for PID control
+float position_target = 35; // Target velocity for PID control
 // === Kalman Filter Timing ===
 unsigned long last_execution_time = 0;
-const unsigned long interval = 100; // 100 milliseconds
 // === Object Instantiations ===
 KalmanFilter filter(&delta_time, &position_reading, &position_estimate, &velocity_estimate, &sigma_v_squared, &r);
 LinAct lin_act(PWM_PIN, DIR_PIN, POT_INPUT, &position_reading);
 LinAct_Timer timer(&delta_time);
 YAPID pid_controller(Ts, Kp, Ki, Kd, N);
 // === Helper Functions ===
-void print_all() {
-    Serial.print("Position: ");
-    Serial.print(position_reading);
-    Serial.print(" mm, ");
-    Serial.print("Delta Time: ");
-    Serial.print(delta_time, 6);   // 6 decimal places for microsecond-level resolution
-    Serial.println(" s");
-    Serial.print("Position Estimate: ");
-    Serial.print(position_estimate);
-    Serial.print(" mm, ");
-    Serial.print("Velocity: ");
-    Serial.print(velocity_estimate);
-    Serial.println(" mm/s");
-}
 void pwmTimerHandler(){
-    dir = velocity_target < 0;  // HIGH = retract, LOW = extend
-
-    // Feed magnitudes into the PID so the controller isn't confused by a
-    // sign flip between target and estimate (e.g. target=-10, estimate=+2
-    // during a direction reversal would otherwise read as a huge error).
-    float target_mag = fabs(velocity_target);
-    float estimate_mag = fabs(velocity_estimate);
-
-    PID_output = pid_controller.Compute1(target_mag, estimate_mag);
+    timer.deltaTime(); 
+    // Everything in here runs exactly once every 100ms
+    lin_act.measurePosition(); 
+    filter.updateFilter(); 
+    
     pid_controller.UpdateTime();
-
+    PID_output = pid_controller.Compute1(position_target, position_reading);
+    dir = PID_output < 0;
     PID_output = fabs(PID_output); // magnitude only; dir carries the sign
     lin_act.move(&PID_output, &dir);
 
     // Saturation for Position
-    if (!dir && position_estimate >= 500.0f) velocity_target = 0;
-    else if (dir && position_estimate <= 0.0f) velocity_target = 0;
+    // if (!dir && position_estimate >= 50.0f) {
+    //     PID_output = 0;
+    //     Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
+    // }
+    // else if (dir && position_estimate <= 0.0f){
+    //     PID_output = 0;
+    //     Serial.print("LATCHED STOP at pos="); Serial.println(position_estimate);
+    // } 
 }
-// the loop function runs over and over again forever
+//the loop function runs over and over again forever
 void setup() {
     lin_act.instantiate();
     timer.instantiate();
-    Serial.begin(115200); // Set to 115200 to handle data matrices smoothly
-    pid_controller.SetOutputLimits(0, 50.0f); // cap PID_output magnitude at 50  
+    Serial.begin(115200);   //Set to 115200 to handle data matrices smoothly
+    pid_controller.SetOutputLimits(-255.0f, 255.0f); // cap PID_output magnitude at 50  
+    filter.init();          //seed position_estimate from real hardware first
     ITimer1.init();
     ITimer1.attachInterrupt(TIMER1_INTERVAL_MS, pwmTimerHandler);
-    filter.init();
+    Serial.println("Position_Estimate,PID_Output,Velocity_Target,Velocity_Estimate,Direction");
 }
 void loop() { 
-//   // --- Fix Delta Time Interval ---
-//   timer.deltaTime();
-//   // --- Core Operations ---
-//   lin_act.measurePosition(); // Drops fresh reading into 'position_reading'
-//   filter.updateFilter(); // Pulls reading, calculates math, and pushes directly to 'velocity'
-    // --- Throttled Printing ---
-    unsigned long current_time = millis();
-  // Check if 100ms has passed
-    if (current_time - last_execution_time >= interval) {
-        timer.deltaTime(); 
-        last_execution_time = current_time; // Save the last time we ran this
-        // Everything in here runs exactly once every 100ms
-        lin_act.measurePosition(); 
-        // filter.printMatrices(); 
-        filter.updateFilter(); 
-    }
-
     static unsigned long lastPrint = 0;
-    if (micros() - lastPrint >= 25000) { // Every 25ms
+    if (micros() - lastPrint >= 100000) { // Every 25ms
         lastPrint = micros();
-        Serial.print("PID_Output: ");
-        Serial.println(PID_output);
-        Serial.print("Velocity_Target: ");
-        Serial.println(velocity_target);
-        Serial.print("Velocity_Estimate: ");
-        Serial.println(velocity_estimate);
-        Serial.print("Direction: ");
-        Serial.println(dir);
-        // filter.printMatrices(); // Ensure the filter is updated before printing
-        // print_all(); // This will now successfully print your changing velocity variable! 
-        // filter.stepResponse(&velocity_target); // This will now successfully print your changing velocity variable!
+        Serial.print(position_estimate);
+        Serial.print(",");
+        Serial.print(PID_output);
+        Serial.print(",");
+        Serial.print(position_target);
+        Serial.print(",");
+        Serial.print(velocity_estimate);
+        Serial.print(",");
+        Serial.print(dir);
+        Serial.println("");
     }
 }
